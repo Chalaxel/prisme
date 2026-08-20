@@ -77,6 +77,19 @@ export type PointTier = {
   points: number;
 };
 
+/** Paramètres comportementaux tunables (équilibrage / itérations). */
+export type RulesTuning = {
+  /** Vainqueur pioche en premier (livret) ou ordre distributeur. */
+  drawWinnerFirst: boolean;
+  /** Prisme/Inversion en commune affectent tout le pli. */
+  globalPrisme: boolean;
+  globalInversion: boolean;
+  /** Bluff compte comme joker de couleur (Couleur / Arc-en-ciel). */
+  bluffJokerColor: boolean;
+  /** Le vainqueur capture les communes dans sa pile de points. */
+  winnerCapturesCommons: boolean;
+};
+
 export type RulesConfig = {
   colors: { id: ColorId; name: string; hex: string }[];
   minValue: number;
@@ -95,6 +108,9 @@ export type RulesConfig = {
   bonusUnbeatenLast3: number;
   playMin: number;
   playMax: number;
+  tuning: RulesTuning;
+  /** Libellé court pour rapports de simulation. */
+  variantLabel?: string;
 };
 
 export type Phase =

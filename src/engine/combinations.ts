@@ -57,6 +57,29 @@ function makeCombo(
   };
 }
 
+function bluffCount(cards: Card[]): number {
+  return cards.filter((c) => c.kind === "special" && c.special === "bluff").length;
+}
+
+function numberedColors(cards: Card[]): Map<string, number> {
+  return colorCounts(cards.filter((c) => c.kind === "numbered"));
+}
+
+function qualifiesFlush(cards: Card[], rules: RulesConfig): boolean {
+  if (cards.length < 5) return false;
+  const wild = rules.tuning.bluffJokerColor ? bluffCount(cards) : 0;
+  if (!wild) return [...colorCounts(cards).values()].some((n) => n === 5);
+  const byColor = numberedColors(cards);
+  return [...byColor.values()].some((n) => n + wild >= 5);
+}
+
+function qualifiesRainbow(cards: Card[], rules: RulesConfig): boolean {
+  if (cards.length < 6) return false;
+  const wild = rules.tuning.bluffJokerColor ? bluffCount(cards) : 0;
+  const distinct = numberedColors(cards).size;
+  return distinct + wild >= 6;
+}
+
 /** Best combo this exact set qualifies as (must use every card). */
 export function classifySet(cards: Card[], rules: RulesConfig): Combo | null {
   if (cards.length === 0) return null;
@@ -86,11 +109,11 @@ export function classifySet(cards: Card[], rules: RulesConfig): Combo | null {
     return makeCombo(rules, "royal", cards, values[values.length - 1]);
   }
 
-  if (cards.length === 6 && distinctColors === 6) {
+  if (qualifiesRainbow(cards, rules)) {
     return makeCombo(rules, "rainbow", cards, nums.length ? Math.max(...nums.map((c) => c.value)) : 0);
   }
 
-  if (cards.length === 5 && [...colors.values()].some((n) => n === 5)) {
+  if (qualifiesFlush(cards, rules)) {
     const high = nums.length ? Math.max(...nums.map((c) => c.value)) : 0;
     return makeCombo(rules, "flush", cards, high);
   }

@@ -1,4 +1,12 @@
-import type { RulesConfig } from "../engine/types";
+import type { RulesConfig, RulesTuning } from "../engine/types";
+
+export const livretTuning: RulesTuning = {
+  drawWinnerFirst: true,
+  globalPrisme: true,
+  globalInversion: true,
+  bluffJokerColor: false,
+  winnerCapturesCommons: true,
+};
 
 export const defaultRules: RulesConfig = {
   colors: [
@@ -91,6 +99,8 @@ export const defaultRules: RulesConfig = {
   bonusUnbeatenLast3: 5,
   playMin: 1,
   playMax: 3,
+  tuning: livretTuning,
+  variantLabel: "iter1-livret",
 };
 
 export function cloneRules(rules: RulesConfig): RulesConfig {
