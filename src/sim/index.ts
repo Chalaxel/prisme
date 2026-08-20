@@ -1,4 +1,4 @@
-export { BOTS, greedyBot, noisyBot, randomBot } from "./bot";
+export { BOTS, greedyBot, noisyBot, randomBot, strategicBot, strategicNoisyBot } from "./bot";
 export type { Bot, BotChoice } from "./bot";
 export {
   aggregateReports,

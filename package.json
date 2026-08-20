@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "simulate": "tsx src/sim/cli.ts",
-    "simulate:iterations": "tsx src/sim/run-iterations.ts"
+    "simulate:iterations": "tsx src/sim/run-iterations.ts",
+    "simulate:compare-bots": "tsx src/sim/compare-bots.ts"
   },
   "dependencies": {
     "react": "^19.1.1",

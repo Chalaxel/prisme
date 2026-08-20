@@ -92,7 +92,7 @@ Options:
   -g, --games <n>      Nombre de parties (défaut: 200)
   -p, --players <n>    Joueurs 2–6 (défaut: 4)
   -s, --seed <n>       Graine RNG (défaut: 42)
-  -b, --bot <name>     greedy | noisy | random (défaut: greedy)
+  -b, --bot <name>     greedy | strategic | noisy | random | strategic-noisy (défaut: greedy)
   --variant <id>       iter1 … iter5 ou label (ex. iter5-light-capture)
   -v, --verbose        Détail d'une partie (--games 1 recommandé)
   --json               Sortie JSON agrégée
