@@ -120,7 +120,7 @@ export function aggregateReports(reports: GameReport[], rules: RulesConfig): Agg
   return {
     games: reports.length,
     players: reports[0]?.players ?? 0,
-    rulesLabel: `playMin=${rules.playMin} playMax=${rules.playMax}`,
+    rulesLabel: rules.variantLabel ?? `playMin=${rules.playMin} playMax=${rules.playMax}`,
     avgTurns: mean(reports.map((r) => r.turns)),
     avgScoreSpread: mean(spreads),
     blowoutRate: blowouts / Math.max(reports.length, 1),
@@ -172,11 +172,19 @@ export function deriveInsights(metrics: AggregateMetrics, rules: RulesConfig): D
   }
 
   const bluffRate = (metrics.specialInPlays.bluff ?? 0) / Math.max(metrics.games * metrics.avgTurns * metrics.players, 1);
-  if (bluffRate > 0.08) {
+  if (bluffRate > 0.08 && !rules.tuning.bluffJokerColor) {
     insights.push({
       severity: "warn",
       topic: "Bluff",
       message: `Bluff joué souvent (~${(metrics.avgBluffPlayed * 100).toFixed(0)} % des plis) sans effet mécanique — risque de frustration.`,
+    });
+  }
+
+  if (metrics.avgBluffPlayed > 0.25 && rules.tuning.bluffJokerColor) {
+    insights.push({
+      severity: "info",
+      topic: "Bluff joker",
+      message: `Bluff actif sur ~${(metrics.avgBluffPlayed * 100).toFixed(0)} % des plis (joker couleur) — la carte redevient tactique.`,
     });
   }
 

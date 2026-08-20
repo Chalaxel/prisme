@@ -33,16 +33,28 @@ function subsets(cards: Card[], min: number, max: number): Card[][] {
 
 function flagsFor(cards: Card[], state: GameState) {
   const posedSpecials = cards.filter((c) => c.kind === "special");
+  const { tuning } = state.rules;
+  const playedPrisme = specialsOf(posedSpecials, "prisme").length > 0;
+  const playedInversion = specialsOf(posedSpecials, "inversion").length > 0;
   return {
     prisme:
-      state.prisme ||
-      specialsOf(posedSpecials, "prisme").length > 0 ||
-      specialsOf(state.commons, "prisme").length > 0,
+      (tuning.globalPrisme && state.prisme) ||
+      playedPrisme ||
+      (tuning.globalPrisme && specialsOf(state.commons, "prisme").length > 0),
     inversion:
-      state.inversion ||
-      specialsOf(posedSpecials, "inversion").length > 0 ||
-      specialsOf(state.commons, "inversion").length > 0,
+      (tuning.globalInversion && state.inversion) ||
+      playedInversion ||
+      (tuning.globalInversion && specialsOf(state.commons, "inversion").length > 0),
   };
+}
+
+function comboPool(cards: Card[], state: GameState): Card[] {
+  const numbered = cards.filter((c) => c.kind === "numbered");
+  const pool = [...numbered, ...state.commons];
+  if (state.rules.tuning.bluffJokerColor) {
+    pool.push(...cards.filter((c) => c.kind === "special" && c.special === "bluff"));
+  }
+  return pool;
 }
 
 function comboStrength(
@@ -59,7 +71,7 @@ function comboStrength(
 function scorePlay(cards: Card[], state: GameState, player: PlayerState): number {
   const flags = flagsFor(cards, state);
   const numbered = cards.filter((c) => c.kind === "numbered");
-  const combo = bestCombo([...numbered, ...state.commons], state.rules, flags);
+  const combo = bestCombo(comboPool(cards, state), state.rules, flags);
   let score = comboStrength(combo, state.rules, flags.inversion);
 
   for (const c of numbered) {
@@ -67,7 +79,9 @@ function scorePlay(cards: Card[], state: GameState, player: PlayerState): number
   }
 
   if (specialsOf(cards, "gele").length && score < 2500) score += 180;
-  if (specialsOf(cards, "bluff").length) score -= 120;
+  if (specialsOf(cards, "bluff").length) {
+    score += state.rules.tuning.bluffJokerColor ? 80 : -120;
+  }
   if (specialsOf(cards, "ajoute").length) score += 90;
   if (specialsOf(cards, "prisme").length && numbered.length >= 3) score += 60;
   if (specialsOf(cards, "inversion").length && numbered.some((c) => c.value <= 4)) score += 70;

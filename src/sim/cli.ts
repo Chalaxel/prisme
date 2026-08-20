@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { cloneRules, defaultRules } from "../rules/defaultRules";
+import { BALANCE_ITERATIONS } from "../rules/iterations";
 import { BOTS } from "./bot";
 import { evaluateGameReport, formatEvaluation } from "./evaluate";
 import {
@@ -18,6 +19,7 @@ type CliArgs = {
   verbose: boolean;
   json: boolean;
   sample: number;
+  variant: string | null;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -29,6 +31,7 @@ function parseArgs(argv: string[]): CliArgs {
     verbose: false,
     json: false,
     sample: 0,
+    variant: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +69,10 @@ function parseArgs(argv: string[]): CliArgs {
         args.sample = Number(next);
         i += 1;
         break;
+      case "--variant":
+        args.variant = next;
+        i += 1;
+        break;
       case "--help":
       case "-h":
         printHelp();
@@ -86,6 +93,7 @@ Options:
   -p, --players <n>    Joueurs 2–6 (défaut: 4)
   -s, --seed <n>       Graine RNG (défaut: 42)
   -b, --bot <name>     greedy | noisy | random (défaut: greedy)
+  --variant <id>       iter1 … iter5 ou label (ex. iter5-light-capture)
   -v, --verbose        Détail d'une partie (--games 1 recommandé)
   --json               Sortie JSON agrégée
   --sample <n>         Affiche n replays concis après l'agrégat
@@ -110,7 +118,21 @@ function main() {
     process.exit(1);
   }
 
-  const rules = cloneRules(defaultRules);
+  let rules = cloneRules(defaultRules);
+  if (args.variant !== null) {
+    const variant = args.variant;
+    const found = BALANCE_ITERATIONS.find(
+      (it) =>
+        String(it.id) === variant ||
+        it.rules.variantLabel === variant ||
+        it.name.toLowerCase().includes(variant.toLowerCase()),
+    );
+    if (!found) {
+      console.error(`Variante inconnue : ${args.variant}`);
+      process.exit(1);
+    }
+    rules = cloneRules(found.rules);
+  }
 
   if (args.games === 1 && args.verbose) {
     const report = runSimulation({
