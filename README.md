@@ -10,3 +10,15 @@ En local :
 npm install
 npm run dev
 ```
+
+## Simulation automatique
+
+Pour lancer des centaines de parties avec des bots et obtenir des métriques d’équilibrage :
+
+```bash
+npm run simulate -- --games 500 --players 4
+npm run simulate -- --games 1 --verbose --seed 7
+npm run simulate -- --json --games 200
+```
+
+Options : `--games`, `--players`, `--seed`, `--bot greedy|noisy|random`, `--verbose`, `--sample`, `--json`.
