@@ -113,22 +113,43 @@ export default function App() {
                       {p.tricksWon > 1 ? "s" : ""} · {p.hand.length} en main
                     </small>
                   </h3>
-                  <div className="row">
-                    {p.posed.map((card) => (
-                      <CardView
-                        key={card.id}
-                        card={card}
-                        rules={state.rules}
-                        small
-                        faceDown={state.phase === "play" || state.phase === "curtain"}
-                      />
-                    ))}
-                    {state.phase !== "play" &&
-                      state.phase !== "curtain" &&
-                      state.lastCombos[p.id] && (
-                        <span className="combo-tag">{comboDescription(state.lastCombos[p.id])}</span>
-                      )}
-                  </div>
+                  {(() => {
+                    const hidden = state.phase === "play" || state.phase === "curtain";
+                    const numbered = p.posed.filter((c) => c.kind === "numbered");
+                    const specials = p.posed.filter((c) => c.kind === "special");
+                    return (
+                      <div className="posed-area">
+                        {specials.length > 0 && (
+                          <div className="posed-stack special-stack" aria-label="Cartes spéciales posées">
+                            {specials.map((card) => (
+                              <CardView
+                                key={card.id}
+                                card={card}
+                                rules={state.rules}
+                                small
+                                faceDown={hidden}
+                                hiddenSpecial={hidden}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <div className="posed-stack main-stack row">
+                          {numbered.map((card) => (
+                            <CardView
+                              key={card.id}
+                              card={card}
+                              rules={state.rules}
+                              small
+                              faceDown={hidden}
+                            />
+                          ))}
+                          {!hidden && state.lastCombos[p.id] && (
+                            <span className="combo-tag">{comboDescription(state.lastCombos[p.id])}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </article>
               ))}
             </section>

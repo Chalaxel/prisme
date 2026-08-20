@@ -247,6 +247,57 @@ small {
   box-shadow: 0 4px 14px rgba(63, 111, 216, 0.28);
 }
 
+.card.back.special-back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.12) 0 6px,
+      transparent 6px 12px
+    ),
+    linear-gradient(145deg, #fb8b24, #ec4a5a 48%, #6d3bf5);
+  box-shadow: 0 4px 14px rgba(236, 74, 90, 0.32);
+  letter-spacing: 0.08em;
+}
+
+.card.back.special-back span {
+  font-size: 22px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.card.back.special-back em {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 1;
+}
+
+.posed-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.posed-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.special-stack {
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff6ec, #fff);
+  border: 1px dashed color-mix(in srgb, var(--orange) 55%, var(--line));
+  min-height: 52px;
+}
+
+.special-stack:empty {
+  display: none;
+}
+
 .card.selected {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
