@@ -47,3 +47,10 @@ npm run simulate:compare-bots -- --games 300 --players 4
 1. **Playtest humain hot-seat** — seuls les humains ressentent vraiment la peur du badge ★.
 2. **Bot plus fin** — modéliser « ajuster sa pose » (plusieurs passes UI) ; mémoire par adversaire.
 3. **Re-simuler les 5 itérations** avec `--bot strategic` pour affiner PRISME v2.
+4. **Simulation tracée** — document Markdown tour par tour avec commentaires agents :
+
+```bash
+npm run simulate:ai -- --seed 4242 --variant iter5 --agents strategic,greedy,strategic,greedy --trace 1
+```
+
+Voir `docs/simulations/` pour les comptes rendus générés.
