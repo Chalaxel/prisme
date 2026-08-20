@@ -1,176 +1,295 @@
-# PRISME — Bilan des 5 itérations d'équilibrage
+# PRISME — Bilan des 5 itérations (version expliquée)
 
 Date : 2026-08-20  
-Méthode : 500 parties simulées × 5 variantes · 4 joueurs · bots greedy · seed 2026  
-Commande : `npm run simulate:iterations -- --games 500 --players 4 --seed 2026`
+Méthode : 500 parties simulées × 5 variantes · 4 joueurs · bots « greedy » · seed 2026
+
+---
+
+## 0. Avant de lire les itérations — comment lire ce document
+
+### Comment fonctionne une partie PRISME (rappel)
+
+Chaque **tour** :
+
+1. On retourne des **cartes communes** (3 à 4 selon le nombre de joueurs).
+2. Chaque joueur **pose secrètement** 1 à 3 cartes de sa main.
+3. On révèle tout le monde : chacun forme la **meilleure combinaison** possible avec ses cartes posées + une partie des communes (comme au poker).
+4. Le **vainqueur du pli** capture les cartes (selon les règles) → elles vont dans sa **pile de points**.
+5. Tout le monde **pioche** pour retrouver la taille de main initiale.
+
+À la **fin de la pioche**, on compte :
+- les points de chaque carte capturée (1 à 3 pts selon la valeur),
+- des **bonus** (+ plis gagnés, + meilleure main restante, + invaincu sur les 3 derniers plis).
+
+### Ce que mesurent les chiffres (en français simple)
+
+| Métrique | Signification concrète |
+|----------|------------------------|
+| **Écart score moyen** | Différence entre le 1er et le dernier à la fin. Ex. : 68 = le gagnant a ~68 pts de plus que le 4e. Plus c'est bas, plus la partie était « disputée ». |
+| **Parties serrées** | Fins où l'écart est faible (≤ ~12 % du score moyen). Ex. : 87 vs 80 = serré ; 87 vs 13 = écrasement. |
+| **Blowouts** | Fins très déséquilibrées (écart large). |
+| **Leader mi-partie gagne** | Celui qui avait le plus de points à mi-partie finit 1er. **Bas** = comebacks possibles. **Haut** = une fois en tête, difficile de rattraper. |
+| **Snowball (plis consécutifs)** | Fréquence où le **même joueur gagne deux plis d'affilée. Haut** = le leader enchaîne les plis. |
+| **Prisme actif** | % de plis où la règle Prisme s'applique (seules Couleur / Royal / Prismale comptent). **Haut** = la ladder « poker classique » devient inutile ce tour-là. |
+| **Bluff / pli** | % de plis où quelqu'un pose un Bluff. **0 %** = personne ne la joue (carte morte). |
+| **Combo #1** | Quelle combinaison gagne le plus de plis. Indique ce que les joueurs font **vraiment** en pratique, pas ce qu'affiche le livret. |
+
+### Pourquoi simuler avec des bots ?
+
+Les bots ne bluffent pas socialement, mais ils **maximisent leur combo** tour après tour. Ça permet de tester la **mécanique pure** : est-ce que les règles favorisent un joueur trop tôt ? Est-ce que certaines cartes sont inutiles ? On complète ensuite par du playtest humain.
+
+### Méthode des 5 itérations
+
+Chaque itération **cumule** les changements précédents qui ont montré un effet positif (ou neutre), et ajoute **un nouveau levier** testé isolément. On compare 500 parties avec les mêmes conditions pour voir si le changement va dans le bon sens.
 
 ---
 
 ## Tableau comparatif
 
-| Itération | Écart score moy. | Parties serrées | Blowouts | Leader mi-partie gagne | Snowball (plis consécutifs) | Prisme actif | Bluff / pli | Tours moy. | Combo #1 |
-|-----------|------------------|-----------------|----------|------------------------|----------------------------|--------------|-------------|------------|-----------|
-| **1 — Livret** | 68 | 0,2 % | 99 % | 60 % | 29 % | 17 % | ~0 % | 8,9 | Petite suite |
-| **2 — Anti-snowball** | 65 | 0,8 % | 96 % | 63 % | 28 % | 17 % | 0 % | 8,0 | Petite suite |
-| **3 — Modif. personnels** | 65 | 0,4 % | 98 % | 60 % | 29 % | **0 %** | 0 % | 7,9 | Petite suite |
-| **4 — Bluff joker** | 69 | 0 % | 99 % | 63 % | 28 % | 0 % | **52 %** | 7,0 | Petite suite |
-| **5 — Capture allégée** | **54** | 0 % | 97 % | **57 %** | **27 %** | 0 % | 49 % | 9,3 | **Arc-en-ciel** |
+| Itération | Écart | Serrées | Leader mid gagne | Bluff/pl | Prisme | Combo #1 |
+|-----------|-------|---------|------------------|----------|--------|----------|
+| 1 Livret | 68 | 0,2 % | 60 % | ~0 % | 17 % | Petite suite |
+| 2 Anti-snowball | 65 | 0,8 % | 63 % | 0 % | 17 % | Petite suite |
+| 3 Modif. perso | 65 | 0,4 % | 60 % | 0 % | **0 %** | Petite suite |
+| 4 Bluff joker | 69 | 0 % | 63 % | **52 %** | 0 % | Petite suite |
+| 5 Capture allégée | **54** | 0 % | **57 %** | 49 % | 0 % | **Arc-en-ciel** |
 
 ---
 
 ## Itération 1 — Livret (baseline)
 
-**Règles :** livret inchangé.
+### Objectif
 
-**Constats :**
-- Écart de score massif (~68 pts) — quasi aucune partie serrée.
-- Le leader à mi-partie gagne 60 % du temps.
-- Petite suite domine ; Arc-en-ciel / Couleur restent marginales malgré la ladder affichée.
-- Bluff jamais joué (0 % des plis) — morte en pratique.
-- Prisme actif ~17 % des plis → neutralise souvent la ladder.
-- Gèle sur-utilisé par les bots (~4 000 poses sur 500 parties).
+Mesurer le comportement **des règles actuelles** sans rien changer. C'est la photo de référence.
 
-**Conclusion :** la colonne vertébrale tient, mais le snowball de capture + pioche prioritaire + bonus « plus de plis » (+6) condamne l' suspense. Bluff et ladder haute ne participent pas au ressenti de jeu.
+### Ce qu'on a observé
 
-**Initiative → Itération 2 :** attaquer le snowball mécanique sans toucher aux combos.
+- Écart moyen **68 pts** → en fin de partie, le 1er a très largement devancé les autres.
+- Quasi **aucune partie serrée** (0,2 %).
+- **Petite suite** gagne le plus de plis — pas Arc-en-ciel, pas Couleur royale.
+- **Bluff** joué ~0 % du temps.
+- **Prisme** actif ~17 % des plis.
+- **Gèle** posé des milliers de fois (spéciale défensive omniprésente).
+
+### Pourquoi ça arrive — le raisonnement détaillé
+
+**1. Le snowball de points (effet boule de neige)**
+
+Quand tu gagnes un pli au livret :
+- tu captures **tes cartes + celles des autres + toutes les communes** ;
+- tu pioches **en premier** → tu reconstitues ta main avant les autres ;
+- tu gagnes un pli de plus → tu vises le bonus « plus de plis » (+6).
+
+Chaque victoire te donne **beaucoup de cartes qui valent des points** (souvent 5–12 cartes × 1–3 pts). Le perdant, lui, n'a rien gagné **et** a vidé des cartes de sa main. Sur 8–9 tours, l'écart s'accumule : 80 pts vs 15 pts n'est pas rare.
+
+→ C'est pour ça que l'**écart de 68** et les **99 % de blowouts** : la mécanique pousse mécaniquement le leader à accélérer.
+
+**2. Petite suite partout, pas Arc-en-ciel**
+
+Pour une Arc-en-ciel il faut **6 couleurs différentes** dans le pool (tes cartes + communes). En ne posant que 1–3 cartes avec 3–4 communes, c'est rare. La **petite suite** (3 cartes consécutives) est beaucoup plus facile à assembler.
+
+→ La ladder du livret **promet** 12 types de combos, mais le **plateau réel** ne permet presque que les combos courtes.
+
+**3. Bluff jamais joué**
+
+Bluff n'a **aucun effet** : elle ne rentre pas dans la combo, vaut 1 pt si capturée, occupe un slot de pose. Les bots (comme un joueur rationnel) l'évitent.
+
+→ Ce n'est pas un problème de « mauvaise IA », c'est un ** défaut de design** : la carte n'aide jamais à gagner le pli.
+
+**4. Prisme ~17 % des plis**
+
+Quand Prisme est actif, paire / brelan / suite ne servent plus — seule une Couleur compte. Un pli entier peut basculer sur un hasard de couleur.
+
+→ Ça ajoute de la **variance** et de la **frustration** (« j'avais un brelan inutile »).
+
+### Ce qu'on en déduit
+
+Le problème n°1 n'est pas « les combos sont mal calibrés », c'est : **gagner un pli rapporte trop de points d'un coup**. Les spéciales Prisme global et Bluff mort amplifient le mal-être sans corriger le fond.
+
+### Hypothèse pour l'itération 2
+
+> Si on réduit les avantages mécaniques du vainqueur (pioche + bonus plis) **sans toucher aux combos**, l'écart devrait baisser et les comebacks augmenter.
 
 ---
 
 ## Itération 2 — Anti-snowball
 
-**Changements :**
-- Pioche en ordre distributeur (plus de priorité au vainqueur).
-- Bonus « plus de plis » : 6 → **4**.
-- Copies : Bluff 7 → 4, Gèle 3 → 2.
+### Changements et **pourquoi** on les choisit
 
-**Résultats :**
-- Écart −3 pts (68 → 65). Légère amélioration.
-- 1 % de parties serrées (première fois).
-- Parties plus courtes (−0,9 tour).
-- Leader mi-partie gagne **plus** (63 %) — effet contre-intuitif : sans pioche prioritaire, celui qui mène les plis conserve l'avantage d'une main stable.
+| Changement | Raisonnement |
+|------------|--------------|
+| **Pioche : ordre distributeur** (plus « vainqueur d'abord ») | La pioche prioritaire donnait au gagnant les **meilleures cartes en premier** après chaque pli → main plus stable → gagne encore. On teste l'égalité de accès à la pioche. |
+| **Bonus plis : 6 → 4** | +6 pts est énorme (≈ 2 cartes « 13 »). Ça **double** la récompense de celui qui mène déjà les plis. On réduit sans supprimer l'objectif secondaire. |
+| **Bluff 7 → 4, Gèle 3 → 2** | Moins de cartes « inutiles » (Bluff) et moins de tours bloqués par Gèle → un peu plus de fluidité. Changement mineur, exploratoire. |
 
-**Conclusion :** le frein pioche seul est insuffisant. Le Prisme global reste un bruit majeur.
+### Résultats
 
-**Initiative → Itération 3 :** Prisme/Inversion ne globalisent plus via les communes ; seul le joueur qui pose la spéciale en subit/bénéficie l'effet.
+- Écart : 68 → **65** (↓ 3 pts) — **légère** amélioration, hypothèse **partiellement** confirmée.
+- Premières parties serrées (0,8 %) — signal faible mais réel.
+- **Mais** : leader mi-partie gagne **63 %** (↑ vs 60 %) — **pire** pour les comebacks !
+
+### Pourquoi le leader mid gagne plus ? (effet contre-intuitif expliqué)
+
+Sans pioche prioritaire, **tout le monde pioche dans le même ordre** à chaque tour. Celui qui **gagne plus de plis** pose plus souvent des cartes fortes **sans être puni** par une pioche défavorable systématique. Le frein qu'on a enlevé au vainqueur profite aussi à celui qui domine déjà les plis.
+
+→ Conclusion intermédiaire : **la pioche n'était qu'un symptôme**. Le cœur du snowball reste : **capturer trop de cartes-scoring par pli**.
+
+En parallèle, Prisme global est toujours actif ~17 % → les plis restent parfois illisibles.
+
+### Hypothèse pour l'itération 3
+
+> Si Prisme/Inversion ne s'appliquent qu'au joueur qui pose la spéciale (plus de « Prisme commun » qui ruine le pli pour tout le monde), les parties seront plus **lisibles** et peut-être plus équilibrées.
 
 ---
 
 ## Itération 3 — Modificateurs personnels
 
-**Changements (cumul iter 2) :**
-- `globalPrisme: false`, `globalInversion: false`.
-- Copies Prisme/Inversion : 3 → **2** chacune.
+### Changements et **pourquoi**
 
-**Résultats :**
-- Prisme actif **0 %** des plis (objectif atteint).
-- Écart stable (~65). Pas de gain sur les comebacks.
-- Petite suite toujours dominante.
+| Changement | Raisonnement |
+|------------|--------------|
+| **Prisme/Inversion commune : OFF** | Avant : une Inversion en commune forçait **4 joueurs** à rejouer mentallement toute la ladder. Maintenant : seul celui qui **choisit** de poser Prisme/Inversion subit/bénéficie l'effet sur **son** combo. |
+| **Copies Prisme/Inversion : 3 → 2** | Moins de tours « brouillons ». |
 
-**Conclusion :** suppression du chaos Prisme/Inversion global = bon pour la lisibilité. Les écarts de score viennent surtout de la **capture totale des cartes posées**, pas des modificateurs.
+*(On garde les changements iter 2 : pioche horaire, bonus +4, etc.)*
 
-**Initiative → Itération 4 :** redonner une identité au Bluff (joker couleur) et réduire Gèle (spéciale défensive trop centralisée).
+### Résultats
+
+- Prisme actif : 17 % → **0 %** ✅ (objectif atteint)
+- Écart : **65** (stable) — pas de miracle sur les scores
+- Leader mid : **60 %** (retour à la baseline)
+
+### Pourquoi l'écart ne bouge presque pas ?
+
+Parce qu'on a traité un problème de **clarté**, pas de **scoring**. Même sans Prisme global :
+- le vainqueur capture toujours **toutes les communes + toutes les cartes posées** ;
+- une carte « 13 » capturée = **3 pts** ;
+- un bon pli = **15–25 pts** d'un coup pour un seul joueur.
+
+→ Le raisonnement : *« Les modificateurs globaux agacent, mais ce sont les communes capturées qui gonflent la pile du leader. »*
+
+### Hypothèse pour l'itération 4
+
+> Tant qu'on n'a pas réglé la capture, travaillons sur les **cartes fantômes** : donner un vrai rôle au Bluff. Si les joueurs (bots) la jouent, on saura qu'elle participe au jeu. On réduit Gèle (trop jouée) pour libérer de l'espace.
 
 ---
 
 ## Itération 4 — Bluff joker
 
-**Changements (cumul iter 3) :**
-- Bluff = **joker de couleur** pour Couleur / Arc-en-ciel.
-- Copies Bluff 5, Gèle **1**, points Bluff 1 → **2**.
+### Changements et **pourquoi**
 
-**Résultats :**
-- Bluff joué **52 %** des plis — carte enfin tactique.
-- Parties plus courtes (7,0 tours) — rythme accéléré.
-- Écart **remonte** à 69 (Bluff facilite Arc-en-ciel → plus de points capturés par le gagnant).
-- Top combo reste Petite suite.
+| Changement | Raisonnement |
+|------------|--------------|
+| **Bluff = joker de couleur** | Peut compléter une Couleur ou un Arc-en-ciel en remplaçant une couleur manquante. **Enfin un bénéfice mécanique** pour la poser. |
+| **Bluff : 5 copies, 2 pts** | Assez présent pour tester, un peu plus rentable si capturée. |
+| **Gèle : 1 copie** | En iter 1–3 les bots posaient Gèle en masse (stratégie défensive sans coût). Réduire = moins de plis « annulés » côté capture. |
 
-**Conclusion :** le Bluff joker fonctionne (usage massif) mais **amplifie** le snowball de points en rendant les grosses combos plus accessibles.
+### Résultats
 
-**Initiative → Itération 5 :** séparer « gagner le pli » et « scorer des points » — les communes ne vont plus dans la pile du vainqueur.
+- Bluff joué : 0 % → **52 %** ✅ — la carte est **enfin utilisée** ; l'hypothèse « Bluff morte faute d'effet » est **confirmée et corrigée**.
+- Écart : 65 → **69** (↑ 4 pts) ❌ — **régression** sur l'équilibre !
+- Parties plus courtes (7 tours) — les combos fortes arrivent plus vite.
 
----
+### Pourquoi l'écart **augmente** ? (point crucial)
 
-## Itération 5 — Capture allégée (meilleure itération)
+Bluff joker rend l'**Arc-en-ciel et la Couleur plus faciles**. Qui gagne ces plis ? Souvent celui qui **menait déjà**. Et au livret, le gagnant **capture tout** — y compris les communes qui ont servi à construire l'Arc-en-ciel.
 
-**Changements (cumul iter 4) :**
-- Communes **défaussées** après le pli (non capturées).
-- Bonus main finale : 3 → **5** ; bonus 3 derniers plis : 5 → **8**.
-- Communes +1 pour tables ≤ 4 joueurs (4 communes/tour à 4j).
+Schéma :
+```
+Bluff joker → combos fortes plus fréquentes
+           → le gagnant capture encore TOUT
+           → plus de points par pli pour le leader
+           → écart qui monte (69)
+```
 
-**Résultats :**
-- Écart **54 pts** (−21 % vs livret) — **meilleure moyenne**.
-- Leader mi-partie gagne **57 %** (−3 pts vs livret) — comebacks un peu plus fréquents.
-- Snowball plis consécutifs **27 %** (minimum observé).
-- Top combo gagnante = **Arc-en-ciel** (fantasy ladder enfin visible).
-- Parties légèrement plus longues (+0,4 tour) — plus de décisions.
+→ On a prouvé : **améliorer les combos sans limiter la capture aggrave le snowball**.
 
-**Conclusion :** la capture allégée est le levier le plus efficace testé. Le Bluff joker + communes riches créent des plis mémorables sans exploser l'écart aussi violemment qu'en iter 4.
+### Hypothèse pour l'itération 5
 
----
-
-## Synthèse transversale
-
-### Ce qui a marché
-| Levier | Impact |
-|--------|--------|
-| Communes non capturées | **Fort** — réduit l'écart de score, favorise Arc-en-ciel |
-| Modificateurs personnels | **Moyen** — supprime le chaos Prisme global |
-| Bluff joker | **Moyen** — rend la carte jouable ; à combiner avec capture allégée |
-| Pioche horaire + bonus plis −2 | **Faible** seul — nécessaire mais pas suffisant |
-
-### Ce qui n'a pas marché (ou a empiré)
-| Levier | Problème |
-|--------|----------|
-| Bluff joker sans capture allégée | Écart remonte (69) |
-| Réduire Gèle seul | Bots sur-jouent encore Gèle quand copies > 0 |
-| Métrique « parties serrées » | Toujours ~0 % — les totaux restent ~80 vs ~25 ; seuil relatif dur à atteindre |
-
-### Limite identifiée
-Même la meilleure variante (iter 5) produit **97 % de blowouts** au seuil automatique. Le problème structurel : **chaque carte capturée vaut 1–3 pts** et un gagnant de pli en capture 5–15 cartes → écart de pile de 20–40 pts avant bonus. Pour des fins serrées, il faudra probablement une **itération 6** sur le barème (points par pli plafonnés, scoring par paliers de plis, ou victoire à X points).
+> Séparer deux choses qu'au livret on mélange :
+> 1. **Gagner le pli** (prestige, bonus plis, contrôle du rythme)
+> 2. **Scorer des points** (cartes dans la pile)
+>
+> Si les **communes ne vont plus dans la pile** du vainqueur (elles sont défaussées), gagner un pli rapporte moins de points « gratuits ». On compense en rendant les communes plus nombreuses (+1) pour garder des plis excitants, et on renforce les bonus de fin pour d'autres chemins de victoire.
 
 ---
 
-## Proposition à valider — « PRISME v2 » (fusion iter 3–5)
+## Itération 5 — Capture allégée (meilleure variante)
 
-Règles recommandées pour playtest humain :
+### Changements et **pourquoi**
 
-| Paramètre | Livret | Proposé v2 |
-|-----------|--------|------------|
-| Pioche après pli | Vainqueur d'abord | **Ordre distributeur** |
-| Bonus plus de plis | +6 | **+4** |
-| Prisme / Inversion commune | Global | **Personnel** (celui qui pose) |
-| Bluff | Cosmétique | **Joker couleur** (Couleur / Arc-en-ciel) |
-| Copies Bluff / Gèle | 7 / 3 | **5 / 1** |
-| Communes capturées | Oui | **Non** (défausse) |
-| Communes à 4j | 3 | **4** |
-| Bonus main finale | +3 | **+5** |
-| Bonus 3 derniers plis | +5 | **+8** |
-| Copies Prisme / Inversion | 3 / 3 | **2 / 2** |
+| Changement | Raisonnement |
+|------------|--------------|
+| **Communes non capturées** (défaussées) | Le vainqueur ne prend que les cartes **posées** (+ départages). Les 3–4 communes du tour ne valent plus 3–8 pts bonus pour lui seul. **Cible directe du snowball identifié en iter 4.** |
+| **+1 commune** (4 à 4 joueurs) | Moins de capture ≠ plis ennuyeux. Plus de communes = combos plus riches **sans** les convertir en points automatiques. |
+| **Bonus main finale +5, bonus 3 plis +8** | D'autres façons de gagner que « capturer la moitié du deck ». Compense partiellement la baisse de points par pli. |
 
-**Fichier implémenté :** `src/rules/iterations.ts` → `iter5LightCapture` (cumule toutes ces règles).
+*(Cumule iter 2–4 : pioche horaire, modificateurs perso, Bluff joker, etc.)*
 
-**Commande de replay :**
-```bash
-npm run simulate -- --games 500 --players 4   # après branchement --variant (à venir)
-npm run simulate:iterations -- --games 500
+### Résultats
+
+- Écart : 69 → **54** (−21 % vs livret, **−15 % vs iter 4**) ✅ — **meilleur chiffre** ; hypothèse capture **confirmée**.
+- Leader mid : **57 %** (↓ vs 60–63 %) — un peu plus de retournements possibles.
+- Combo #1 : Petite suite → **Arc-en-ciel** — la **fantasy du jeu** apparaît enfin dans les résultats.
+- Snowball plis : **27 %** (le plus bas) — moins d'enchaînements écrasants.
+
+### Pourquoi Arc-en-ciel devient #1 ?
+
+Plus de communes + Bluff joker = Arc-en-ciel **faisable**. Mais comme les communes **ne sont plus capturées**, ce pli spectaculaire ne donne **pas** 10 pts de communes au gagnant — surtout les cartes posées. Le pli est **mémorable** sans être **dévastateur** économiquement.
+
+→ C'est exactement le type de dynamique qu'on cherchait : **du spectacle sans snowball**.
+
+### Limite honnête
+
+« Parties serrées » reste ~0 % au seuil auto. Même à 54 pts d'écart, on a souvent ~75 vs ~21. Le barème (1–3 pts par carte capturée × beaucoup de plis gagnés) reste **steep**. Une iter 6 sur le **plafond de points par pli** ou une **victoire à X pts** serait la suite logique.
+
+---
+
+## Fil conducteur — comment chaque itération découle de la précédente
+
+```
+Iter 1 : « Les écarts sont énormes »
+    └─ Cause identifiée : capturer trop + pioche vainqueur + gros bonus plis
+         └─ Iter 2 : on atténue pioche + bonus
+              └─ Résultat : −3 pts seulement ; comebacks pas mieux
+                   └─ Iter 3 : on enlève Prisme/Inversion global (clarté)
+                        └─ Résultat : plus lisible, score identique
+                             └─ Iter 4 : on donne un rôle au Bluff
+                                  └─ Résultat : Bluff OK, mais écart ↑ (combos fortes + capture totale)
+                                       └─ Iter 5 : communes non capturées
+                                            └─ Résultat : meilleur équilibre + Arc-en-ciel fun
 ```
 
 ---
 
-## Pistes pour itération 6 (hors scope de cette session)
+## Proposition « PRISME v2 » — ce que je recommande et pourquoi
 
-1. **Plafond de capture** — max 6 cartes par pli dans la pile de points.
-2. **Scoring par pli** — +2 pts fixe au gagnant + valeurs des cartes posées seulement (pas des communes).
-3. **Objectif de victoire** — premier à 40 pts OU fin de pioche (parties plus courtes et serrées).
-4. **Échange après révélation partielle** — cible choisie après voir les cartes posées (réduit la frustration).
+C'est la variante **iter 5** : elle cumule tout ce qui a **montré un effet positif** sans garder les régressions isolées.
+
+| Règle | Livret | v2 proposé | Pourquoi |
+|-------|--------|------------|----------|
+| Pioche | Vainqueur d'abord | Distributeur | Légèrement plus juste ; iter 2 seule insuffisante mais gardée |
+| Bonus plis | +6 | +4 | Évite de doubler l'avance du meneur |
+| Prisme/Inversion en commune | Tous affectés | Celui qui pose | Plis lisibles |
+| Bluff | Rien | Joker couleur | Carte jouée 50 % du temps au lieu de 0 % |
+| Communes capturées | Oui | **Non** | **Levier le plus fort** sur l'écart |
+| Communes (4j) | 3 | 4 | Plis plus riches sans points gratuits |
+| Bonus fin | +3 / +5 | +5 / +8 | Autres chemins de victoire |
 
 ---
 
-## Validation demandée
+## Ce que je vous propose de valider
 
-Merci de confirmer ou infirmer :
+1. **PRISME v2 (iter 5) comme règles par défaut** pour vos prochains playtests ?
+2. **Garder le livret classique** en option (mode « Classique ») ?
+3. **Itération 6** sur le barème (ex. max 6 cartes comptées par pli, ou victoire à 40 pts) ?
+4. **Playtest humain** avant d'imprimer un nouveau livret ?
 
-- [ ] Adopter **PRISME v2** (iter 5) comme nouvelles règles par défaut du livret ?
-- [ ] Garder le livret original accessible (mode « classique ») ?
-- [ ] Lancer une **itération 6** sur le barème de points ?
-- [ ] Playtest humain hot-seat avant de figer ?
+---
+
+## Rejouer les simulations
+
+```bash
+npm run simulate:iterations -- --games 500 --players 4 --seed 2026
+npm run simulate -- --variant 5 --games 500 --players 4
+```
