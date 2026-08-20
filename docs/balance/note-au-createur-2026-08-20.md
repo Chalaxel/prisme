@@ -1,194 +1,192 @@
-# Note au créateur de PRISME
+# PRISME — Bilan pour le créateur
 
 **Date :** 20 août 2026  
-**Destinataire :** créateur·rice du jeu PRISME  
-**Objet :** synthèse d'une session de travail (équilibrage, simulations, pistes de règles v2)
+**Objet :** ce que les règles produisent à la table, et comment les ajuster
 
 ---
 
-## 1. Contexte de cette note
+## En bref
 
-Cette note résume une conversation de travail autour du prototype web **PRISME** (React/TypeScript). L'objectif n'était pas de refaire l'interface, mais de **comprendre et dynamiser les règles** à l'aide d'outils de simulation reproductibles, puis de formuler des propositions concrètes pour vos prochains playtests.
+PRISME mélange levées, combos façon poker et cartes spéciales. C’est une base très riche. En jouant et en simulant des parties **avec de vraies intentions** (bluff, prudence, construction de main sur plusieurs tours), on voit surtout ceci :
 
-Tout le code (moteur, simulateur, traces) est dans le dépôt ; vous pouvez rejouer les scénarios vous-même (voir section 6).
+- le **vainqueur d’un pli emporte trop de matière scorable** → parties souvent écrasées ;
+- le **Bluff** n’est pas une carte morte, mais une carte **sociale** (visible tôt, elle fait réfléchir les suivants) ;
+- la **fantasy du jeu** (Arc-en-ciel, gros pots) existe, mais le livret actuel la noie sous des plis « petits mais rentables » ;
+- votre idée — **seules les communes compteraient en points** — va dans le bon sens et mérite un playtest à part entière.
 
----
-
-## 2. Ce qui a été mis en place
-
-### 2.1 Simulateur batch (500+ parties)
-
-- Bots jouant des parties complètes avec métriques : écart de score, blowouts, snowball de plis, usage des spéciales, combo gagnante la plus fréquente, etc.
-- **5 itérations de règles** testées séquentiellement (`iter1` livret → `iter5` capture allégée).
-- Rapport détaillé : `docs/balance/2026-08-20-iterations-bilan.md`.
-
-### 2.2 Bots plus intelligents
-
-Deux niveaux de bots :
-
-| Bot | Rôle |
-|-----|------|
-| **greedy** | Maximise la combo immédiate — utile pour tester la mécanique pure, mais **sous-estime le Bluff** et la pose séquentielle. |
-| **strategic** | Modélise l'ordre de pose, la pression des badges ★ visibles, le bluff early, la prudence sous pression, et la **construction long terme** (garder des cartes pour les prochains pots). |
-
-Documentation : `docs/balance/simulation-et-bots.md`.
-
-### 2.3 Simulation tracée « agents explicables » (nouveau)
-
-Commande :
-
-```bash
-npm run simulate:ai -- --seed 4242 --variant iter5 --agents strategic,greedy,strategic,greedy --trace 1
-```
-
-Pour chaque partie, un **document Markdown tour par tour** est généré dans `docs/simulations/`, contenant :
-
-- les **communes** et modificateurs du tour ;
-- pour **chaque joueur**, dans l'ordre de pose : main, table visible, cartes jouées ;
-- la **stratégie** déclarée et un **commentaire en français** expliquant pourquoi l'agent a joué ainsi ;
-- la **résolution** : combos, vainqueur, capture, points cumulés.
-
-**Précision importante :** ce ne sont pas des appels à un LLM externe (ChatGPT, etc.). Ce sont des **agents heuristiques auditable** — reproductibles à seed identique, avec une logique de scoring commentée. Ils approximent une « vraie IA de jeu » sans coût ni variabilité aléatoire d'un modèle génératif. Un branchement LLM reste possible plus tard si vous le souhaitez.
-
-Exemple généré : `docs/simulations/2026-08-20_seed4242_iter5-light-capture-strategic-greedy-strategic-greedy.md`.
+Ce document suit un fil simple : **mécanique → ce qu’on observe → piste d’équilibrage**.
 
 ---
 
-## 3. Clarifications de design (validées en conversation)
+## 1. Gagner un pli = capturer presque tout
 
-Ces points corrigent des interprétations erronées des premières simulations :
+**Mécanique**  
+Au livret, le vainqueur récupère ses cartes, celles des autres **et toutes les communes** du tour. Chaque carte vaut 1 à 3 points en fin de partie.
 
-### 3.1 « Snowball » = accumulation, pas compounding
+**Phénomène**  
+Celui qui gagne un pli ne gagne pas seulement le prestige : il **remplit sa pile**. Sur une partie de 8–9 tours, le leader accumule des dizaines de points d’avance. Les autres jouent des cartes sans les récupérer, donc **creusent leur retard en même temps qu’ils tentent de revenir**. Résultat typique : une fin à 80 contre 15, peu de suspense, peu de retournements.
 
-Le terme **snowball** dans nos métriques désigne : *le même joueur gagne plusieurs plis d'affilée*, donc **accumule plus de cartes dans sa pile**. Ce n'est **pas** « plus de points rendent plus facile de gagner les plis suivants ». Les points n'accélèrent pas mécaniquement la victoire au pli — c'est l'**accumulation de cartes capturées** qui creuse l'écart en fin de partie.
+**Suggestion**  
+Séparer clairement « gagner le pli » et « marquer des points » :
 
-### 3.2 Pioche vainqueur en premier = effet marginal
-
-Tout le monde reconstitue sa main à chaque tour. Faire piocher le vainqueur en premier a un impact **faible** seul ; ce n'est pas le levier principal du déséquilibre.
-
-### 3.3 Bluff = effet social, pas seulement mécanique
-
-Au livret, poser un **Bluff** visible (badge ★) en début de séquence de pose peut **intimider** les joueurs suivants — effet que le bot greedy ne modélise pas du tout. Avec le bot strategic, le Bluff apparaît ~50 % des plis (iter4+), ce qui est cohérent avec votre intention de design.
-
-### 3.4 Construction de main long terme
-
-Les joueurs expérimentés gardent des cartes qui ne servent pas au pli immédiat mais à un **pot futur** (suite, couleur, 1-6-13 Prismale). Le bot strategic pénalise la « casse » de ces réserves ; greedy non.
-
-### 3.5 Piste forte : points = communes seulement
-
-Vous avez exprimé une direction de design importante : **seules les cartes communes rapporteraient des points** (pot visible, annoncé), le reste étant inconnu (ce que les autres posent). Cette variante n'a pas encore été implémentée comme règle par défaut, mais c'est probablement la **piste la plus alignée** avec l'esprit PRISME (bluff, lecture de table, pots annoncés). Nous recommandons une **iter6 « communes-only scoring »** en playtest prioritaire.
+- **Piste testée (v2)** : le vainqueur ne capture **plus les communes** (elles sont défaussées). Il garde les cartes posées. C’est le changement le plus efficace pour resserrer les scores tout en gardant des plis intéressants.
+- **Piste alignée avec votre vision** : **seules les communes rapportent des points** — pot visible, connu de tous ; le reste reste un pari sur ce que les autres posent.
 
 ---
 
-## 4. Résultats des 5 itérations (500 parties · 4 joueurs · seed 2026)
+## 2. Pose l’une après l’autre, avec des cartes visibles
 
-| Itération | Écart moyen | Leader mid gagne | Bluff/pl | Combo #1 |
-|-----------|-------------|------------------|----------|----------|
-| 1 Livret | 68 | 60 % | ~0 % | Petite suite |
-| 2 Anti-snowball | 65 | 63 % | 0 % | Petite suite |
-| 3 Modif. perso | 65 | 60 % | 0 % | Petite suite |
-| 4 Bluff joker | 69 | 63 % | 52 % | Petite suite |
-| **5 Capture allégée** | **54** | **57 %** | 49 % | **Arc-en-ciel** |
+**Mécanique**  
+Chacun pose face cachée, **dans l’ordre**. Les spéciales posées par les joueurs précédents restent **visibles** (badge ★) ; les cartes numérotées, elles, restent cachées.
 
-*(Bots greedy pour le batch historique ; comparer avec `--bot strategic` pour le Bluff et la pose séquentielle.)*
+**Phénomène**  
+Poser en premier avec une spéciale visible, c’est envoyer un signal : « attention, quelque chose se prépare ici ». Les joueurs suivants hésitent à engager leurs belles cartes. Poser en dernier, c’est lire la table et décider si on suit ou si on se contente d’un petit pli. **C’est là que vit une partie de PRISME** — pas dans le calcul froid de la meilleure combo du moment.
 
-### Lecture en une phrase
-
-Le **snowball de points** vient surtout de la **capture totale** (cartes posées + communes) ; atténuer la pioche ou les bonus plis seuls ne suffit pas ; donner un rôle au Bluff améliore le fun mais peut **aggraver** l'écart si la capture reste totale ; **ne plus capturer les communes** (iter5) est le levier le plus efficace testé à ce jour.
-
-### Pourquoi iter5 ressort
-
-- Écart **−21 %** vs livret, **−15 %** vs iter4.
-- **Arc-en-ciel** devient la combo la plus fréquente — la « fantasy » du jeu apparaît sans écraser économiquement (les communes ne vont plus dans la pile).
-- Snowball de plis consécutifs au **plus bas** (~27 %).
+**Suggestion**  
+Garder cette séquence comme cœur du jeu. Ne pas la « corriger » : la renforcer en donnant un vrai rôle aux cartes visibles (Bluff, Prisme posé, etc.) et en évitant que gagner un pli rapporte trop de points d’un coup (voir point 1).
 
 ---
 
-## 5. Proposition PRISME v2 (basée sur iter5)
+## 3. Le Bluff : intimidation, pas combo
 
-| Règle | Livret actuel | v2 proposé | Motivation |
-|-------|---------------|------------|------------|
-| Pioche | Vainqueur d'abord | Distributeur (horaire) | Légèrement plus équitable |
-| Bonus plis | +6 | +4 | Moins de doublement d'avance |
-| Prisme/Inversion en commune | Tous affectés | Celui qui pose | Plis plus lisibles |
-| Bluff | Carte neutre | Joker couleur (+2 pts) | Jouée ~50 % des plis |
-| Communes capturées | Oui | **Non (défaussées)** | **Levier n°1 anti-snowball** |
-| Communes (4j) | 3 | 4 | Plis riches sans points gratuits |
-| Bonus fin | +3 / +5 | +5 / +8 | Autres chemins de victoire |
+**Mécanique (livret)**  
+Le Bluff ne rentre dans aucune combinaison. Il vaut 1 point s’il est capturé.
 
-**Recommandation :** adopter v2 comme **règles de playtest par défaut**, en gardant le livret en mode « Classique » si vous le souhaitez.
+**Phénomène**  
+Si on joue comme une machine à optimiser la combo du tour, **personne ne joue le Bluff** — logique. Mais à une vraie table, le Bluff sert à **faire peur tôt** : posé seul ou avec une carte, le badge ★ incite les suivants à se méfier. Ce n’est pas « une carte inutile », c’est une carte **psychologique**. Les premières analyses automatiques (sans stratégie) concluaient à tort que le Bluff était mort ; dès qu’on modélise la pose séquentielle, il revient dans le jeu.
+
+**Suggestion**  
+- Traiter le Bluff comme **joker de couleur** (il peut compléter une combo) **et** signal visible — les deux à la fois.
+- Ne pas exiger qu’il « gagne » des plis tout seul : son job, c’est de **faire réfléchir** les autres.
 
 ---
 
-## 6. Suggestions pour la suite (par priorité)
+## 4. Peu de communes + petites poses = petites combos
 
-### Priorité 1 — Playtest humain hot-seat
+**Mécanique**  
+On pose 1 à 3 cartes. Les communes sont 3 (à 4 joueurs). La meilleure combo se fait avec ses cartes + une partie des communes.
 
-Aucune simulation ne remplace la **peur du badge ★** ni la lecture des adversaires. Testez v2 autour d'une table réelle avant d'imprimer un nouveau livret.
+**Phénomène**  
+Les **Arc-en-ciel** et **Couleurs royales** demandent beaucoup de couleurs ou de cartes dans le pool. Avec si peu de matière sur la table, ce qui gagne le plus souvent, ce sont des **Petites suites** et **Brelans** — solides, efficaces, mais moins « PRISME ». Le livret promet douze types de mains ; la table en produit surtout trois ou quatre.
 
-### Priorité 2 — Variante « points = communes only »
-
-Alignée avec votre vision du pot annoncé. Piste concrète pour iter6 :
-
-- Annoncer le pot du tour (communes visibles).
-- Seules les communes capturées (ou une sous-partie) comptent en points.
-- Les cartes posées des adversaires restent un enjeu de **plis** et de bonus, pas de barème linéaire.
-
-### Priorité 3 — Plafond ou victoire à score
-
-Même iter5 laisse des écarts ~54 pts (ex. 75 vs 21). Pistes :
-
-- **Victoire à X points** (ex. 40) pour des parties plus courtes et serrées ;
-- **Plafond de cartes comptées par pli** (ex. max 6) ;
-- Re-simuler iter1–5 avec `--bot strategic` et le nouveau `simulate:ai` pour valider les traces.
-
-### Priorité 4 — Affiner les agents
-
-- Ajouter des profils (agressif, défensif, bluffeur).
-- Brancher un LLM optionnel pour des commentaires plus « humains » (coût + non-déterminisme).
-- Mémoire par adversaire (qui bluffe souvent, qui temporise).
+**Suggestion**  
+- **Une commune de plus** par tour (ex. 4 au lieu de 3 à 4 joueurs) : les plis deviennent plus spectaculaires sans forcément exploser les scores — surtout si les communes ne vont plus toutes dans la pile du vainqueur.
+- Accepter que certaines mains restent rares ; les rendre **possibles** suffit pour créer des moments mémorables.
 
 ---
 
-## 7. Questions ouvertes pour vous
+## 5. Prisme et Inversion sur les communes
 
-1. **PRISME v2 (iter5)** : souhaitez-vous l'adopter comme base de playtest ?
-2. **Mode Classique** : garder le livret intact en option ?
-3. **Scoring communes-only** : est-ce la direction cible à prototyper en iter6 ?
-4. **Durée de partie** : préférez-vous une victoire à score fixe ou un nombre de tours fixe ?
-5. **Bluff** : le joker couleur (+2 pts) vous semble-t-il fidèle à l'esprit du jeu ?
+**Mécanique (livret)**  
+Si Prisme ou Inversion est parmi les communes, **tout le monde** est affecté pour ce pli.
 
----
+**Phénomène**  
+Un seul tour peut invalider toute une main préparée (« j’avais un brelan, il ne compte plus »). Ça ajoute du chaos, parfois drôle, souvent **frustrant** parce que personne ne « possède » la décision.
 
-## 8. Commandes utiles
-
-```bash
-# 5 itérations × 500 parties
-npm run simulate:iterations -- --games 500 --players 4 --seed 2026
-
-# Une variante précise
-npm run simulate -- --variant 5 --games 500 --players 4 --bot strategic
-
-# Comparer greedy vs strategic
-npm run simulate:compare-bots -- --games 300 --players 4
-
-# Partie tracée avec commentaires agents (Markdown)
-npm run simulate:ai -- --seed 4242 --variant iter5 --agents strategic,greedy,strategic,greedy --trace 1
-
-# Lot + métriques sans trace
-npm run simulate:ai -- --batch 200 --variant iter5 --agents strategic,strategic,strategic,strategic
-```
+**Suggestion**  
+Que Prisme et Inversion ne s’appliquent **qu’à celui qui les pose** (ou à son camp), pas à toute la table via les communes. Les plis restent lisibles : on sait qui a changé les règles du tour.
 
 ---
 
-## 9. Conclusion
+## 6. Bonus « plus de plis gagnés »
 
-PRISME a une **mécanique riche** (communes, combos poker, spéciales, pose séquentielle) dont le livret actuel **favorise mécaniquement** un leader qui enchaîne les plis par **capture totale**. Les simulations identifient clairement ce levier ; iter5 le corrige partiellement tout en rendant **Arc-en-ciel** plus présent.
+**Mécanique**  
+En fin de partie : bonus pour celui qui a gagné le plus de plis (+6 au livret).
 
-Votre intuition — **points sur les communes, bluff social, construction long terme** — pointe vers une v3 plus fidèle à l'expérience visée qu'un simple ajustement numérique. Les outils sont prêts pour itérer rapidement ; la prochaine étape décisive reste le **playtest humain** et, si vous validez la piste, le prototypage **communes-only**.
+**Phénomène**  
+Celui qui mène déjà la course aux plis reçoit **encore** un bonus. Ce n’est pas la cause principale du déséquilibre, mais ça **cimente** l’avance du leader.
 
-Merci pour ce jeu — la combinaison levées + poker + spéciales est rare et prometteuse.
+**Suggestion**  
+Passer à **+4** (ou un bonus plus progressif). Garder l’idée — récompenser la régularité — sans doubler l’effet « j’ai déjà gagné la moitié des plis ».
 
 ---
 
-*Document généré dans le cadre du développement du prototype web PRISME. Pour le détail technique des itérations, voir `docs/balance/2026-08-20-iterations-bilan.md`.*
+## 7. Pioche : le vainqueur en premier
+
+**Mécanique**  
+Après un pli, le vainqueur pioche en premier, puis les autres dans l’ordre.
+
+**Phénomène**  
+Tout le monde reconstitue sa main à chaque tour. L’ordre de pioche change peu la donne : **effet faible** comparé à la capture totale des cartes.
+
+**Suggestion**  
+Pioche dans l’ordre du donneur (horaire) : un peu plus équitable, mais **ne pas s’attendre** à ce que seul ce changement sauve l’équilibre.
+
+---
+
+## 8. Gèle : la carte « je vais probablement perdre »
+
+**Mécanique**  
+Gèle protège ses cartes posées si on perd le pli.
+
+**Phénomène**  
+Quand perdre un pli coûte cher (toutes les cartes capturées), **Gèle devient omniprésente** : on la pose par peur, pas par choix tactique intéressant.
+
+**Suggestion**  
+En allégeant ce que rapporte la victoire (communes non capturées, ou points sur communes seulement), Gèle redevient une **option**, pas un réflexe systématique. La rendre un peu plus rare dans le deck peut aussi aider.
+
+---
+
+## 9. Construire sa main sur plusieurs tours
+
+**Mécanique**  
+On peut garder en main des cartes qui ne servent pas au pli du moment.
+
+**Phénomène**  
+Les joueurs avisés **temporisent** : ils laissent passer un pot moyen pour garder une suite, une couleur, ou un 1–6–13 pour un tour suivant. C’est une couche de profondeur essentielle — le jeu n’est pas que « le meilleur pli maintenant ».
+
+**Suggestion**  
+Ne pas sur-récompenser chaque pli immédiat (encore une fois : points sur les communes, capture allégée). Laisser de l’espace pour **planifier** rend PRISME distinct d’un poker éclairsé.
+
+---
+
+## 10. Fin de partie encore trop étalée
+
+**Mécanique**  
+On joue jusqu’à épuisement de la pioche, puis on totalise pile + bonus.
+
+**Phénomène**  
+Même avec des règles assouplies, on observe souvent **40 à 60 points d’écart** entre le premier et le dernier. La partie se termine parfois « mathématiquement » avant la fin de la pioche.
+
+**Suggestion**  
+- **Victoire à X points** (ex. 40) : parties plus courtes, fin tendue.
+- Ou **plafond** : seules les N cartes les plus fortes du pli comptent en points.
+- À valider en playtest humain — les chiffres exacts importent moins que la **sensation** de retour possible.
+
+---
+
+## Synthèse : une proposition de playtest (PRISME v2)
+
+Sans entrer dans la technique, voici un **paquet de règles** cohérent avec tout ce qui précède :
+
+| Idée | Livret | Proposition playtest |
+|------|--------|----------------------|
+| Communes capturées par le vainqueur | Oui | **Non** (défaussées) |
+| Communes par tour (4 joueurs) | 3 | **4** |
+| Bluff | Sans effet combo | **Joker couleur** + signal visible |
+| Prisme / Inversion en commune | Toute la table | **Celui qui pose** |
+| Bonus « plus de plis » | +6 | **+4** |
+| Pioche | Vainqueur d’abord | **Ordre du donneur** |
+
+Et, si vous voulez pousser votre vision plus loin : **prototyper une variante où seules les communes marquent des points** — c’est probablement la direction la plus fidèle à l’esprit bluff / pot annoncé / lecture de table.
+
+---
+
+## Ce qu’on vous propose de décider
+
+1. Tester **PRISME v2** autour d’une vraie table (4 joueurs, hot-seat).
+2. Garder le **livret actuel** en option « Classique » si vous le souhaitez.
+3. Prioriser ou non une session **« points = communes only »**.
+4. Choisir une **durée cible** : pioche entière vs victoire à score.
+
+---
+
+## Mot de fin
+
+PRISME a déjà ce qu’il faut pour accrocher : communes partagées, combos ambitieuses, pose séquentielle, spéciales qui racontent une histoire. Le principal frein aujourd’hui, ce n’est pas le manque d’idées — c’est que **chaque pli gagné remporte trop de butin**. En allégeant ça, le Bluff, l’Arc-en-ciel et la construction long terme ont enfin l’espace pour exister.
+
+Merci pour ce jeu — il mérite qu’on le fasse briller à la table.
+
+---
+
+*Pour le détail des outils de simulation (optionnel) : traces tour par tour dans `docs/simulations/`, documentation technique dans `docs/balance/`.*
