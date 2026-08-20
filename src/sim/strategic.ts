@@ -1,6 +1,6 @@
 import { bestCombo, compareCombos, numbered } from "../engine/combinations";
 import { cardPoints } from "../engine/score";
-import type { Card, GameState, NumberedCard, PlayerState, RulesConfig, SpecialCard } from "../engine/types";
+import type { Card, GameState, NumberedCard, PlayerState, RulesConfig } from "../engine/types";
 import type { Bot, BotChoice } from "./bot-shared";
 import { pickEchangeTarget, specialsOf, subsets } from "./bot-shared";
 
@@ -84,7 +84,7 @@ function turnsRemainingEstimate(state: GameState): number {
   return Math.max(1, cardsLeft / Math.max(row.commonsPerTurn * state.players.length, 1));
 }
 
-function immediatePlayScore(cards: Card[], state: GameState, player: PlayerState): number {
+function immediatePlayScore(cards: Card[], state: GameState, _player: PlayerState): number {
   const flags = flagsFor(cards, state);
   const combo = bestCombo(comboPool(cards, state), state.rules, flags);
   let score = comboStrength(combo, state.rules, flags.inversion);
