@@ -89,8 +89,12 @@ function beginTurn(state: GameState): GameState {
 
   const commonAdds = specialsOf(next.commons, "ajoute").length;
   next = applyAdds(next, commonAdds);
-  next.prisme = specialsOf(next.commons, "prisme").length > 0;
-  next.inversion = specialsOf(next.commons, "inversion").length > 0;
+  if (next.rules.tuning.globalPrisme) {
+    next.prisme = specialsOf(next.commons, "prisme").length > 0;
+  }
+  if (next.rules.tuning.globalInversion) {
+    next.inversion = specialsOf(next.commons, "inversion").length > 0;
+  }
   if (next.prisme) next.log = [...next.log, "Prisme commun : seules Couleur et Couleur royale comptent."];
   if (next.inversion) next.log = [...next.log, "Inversion commune : le 1 est le plus fort."];
   if (commonAdds) next.log = [...next.log, `Ajoute (commune) : ${commonAdds} carte(s) de plus.`];
@@ -168,6 +172,34 @@ function player(state: GameState, id: number): PlayerState {
   return state.players.find((p) => p.id === id)!;
 }
 
+function comboFlagsForPlayer(
+  player: PlayerState,
+  state: GameState,
+): { prisme: boolean; inversion: boolean } {
+  const { tuning } = state.rules;
+  const playedPrisme = specialsOf(player.posed, "prisme").length > 0;
+  const playedInversion = specialsOf(player.posed, "inversion").length > 0;
+  return {
+    prisme:
+      (tuning.globalPrisme && state.prisme) ||
+      playedPrisme ||
+      (tuning.globalPrisme && specialsOf(state.commons, "prisme").length > 0),
+    inversion:
+      (tuning.globalInversion && state.inversion) ||
+      playedInversion ||
+      (tuning.globalInversion && specialsOf(state.commons, "inversion").length > 0),
+  };
+}
+
+function comboPoolForPlayer(player: PlayerState, state: GameState): Card[] {
+  const numberedPosed = player.posed.filter((c) => c.kind === "numbered");
+  const pool: Card[] = [...numberedPosed, ...state.commons];
+  if (state.rules.tuning.bluffJokerColor) {
+    pool.push(...player.posed.filter((c) => c.kind === "special" && c.special === "bluff"));
+  }
+  return pool;
+}
+
 function resolveTrick(state: GameState): GameState {
   let next = { ...state, log: [...state.log] };
   const posedSpecials = next.players.flatMap((p) => p.posed.filter((c) => c.kind === "special"));
@@ -176,11 +208,18 @@ function resolveTrick(state: GameState): GameState {
     next = applyAdds(next, handAdds);
     next.log = [...next.log, `Ajoute (main) : +${handAdds} commune(s).`];
   }
-  next.prisme = next.prisme || specialsOf(posedSpecials, "prisme").length > 0 || specialsOf(next.commons, "prisme").length > 0;
-  next.inversion =
-    next.inversion ||
-    specialsOf(posedSpecials, "inversion").length > 0 ||
-    specialsOf(next.commons, "inversion").length > 0;
+  if (next.rules.tuning.globalPrisme) {
+    next.prisme =
+      next.prisme ||
+      specialsOf(posedSpecials, "prisme").length > 0 ||
+      specialsOf(next.commons, "prisme").length > 0;
+  }
+  if (next.rules.tuning.globalInversion) {
+    next.inversion =
+      next.inversion ||
+      specialsOf(posedSpecials, "inversion").length > 0 ||
+      specialsOf(next.commons, "inversion").length > 0;
+  }
   if (specialsOf(posedSpecials, "prisme").length) next.log = [...next.log, "Prisme activé depuis une main."];
   if (specialsOf(posedSpecials, "inversion").length) next.log = [...next.log, "Inversion activée depuis une main."];
 
@@ -204,20 +243,21 @@ function resolveTrick(state: GameState): GameState {
   next = { ...next, players };
   const combos: Record<number, Combo | null> = {};
   for (const p of next.players) {
-    const numberedPosed = p.posed.filter((c) => c.kind === "numbered");
-    const pool = [...numberedPosed, ...next.commons];
-    combos[p.id] = bestCombo(pool, next.rules, { prisme: next.prisme, inversion: next.inversion });
+    const flags = comboFlagsForPlayer(p, next);
+    const pool = comboPoolForPlayer(p, next);
+    combos[p.id] = bestCombo(pool, next.rules, flags);
     next.log = [...next.log, `${p.name} : ${comboDescription(combos[p.id])}`];
   }
 
   let contenders = [...next.players.map((p) => p.id)];
+  const inversionForCompare = next.rules.tuning.globalInversion && next.inversion;
   contenders.sort((a, b) => {
     const ca = combos[a];
     const cb = combos[b];
     if (!ca && !cb) return 0;
     if (!ca) return -1;
     if (!cb) return 1;
-    return compareCombos(cb, ca, next.inversion, next.rules);
+    return compareCombos(cb, ca, inversionForCompare, next.rules);
   });
 
   const best = combos[contenders[0]];
@@ -225,7 +265,7 @@ function resolveTrick(state: GameState): GameState {
     const c = combos[id];
     if (!best && !c) return true;
     if (!best || !c) return false;
-    return compareCombos(c, best, next.inversion, next.rules) === 0;
+    return compareCombos(c, best, inversionForCompare, next.rules) === 0;
   });
 
   const tiebreakCards: Card[] = [];
@@ -245,7 +285,7 @@ function resolveTrick(state: GameState): GameState {
     }[];
     if (withCards.length) {
       const mapV = (v: number) =>
-        next.inversion ? next.rules.minValue + next.rules.maxValue - v : v;
+        inversionForCompare ? next.rules.minValue + next.rules.maxValue - v : v;
       withCards.sort((a, b) => mapV(b.card.value) - mapV(a.card.value));
       const top = mapV(withCards[0].card.value);
       tied = withCards.filter((d) => mapV(d.card.value) === top).map((d) => d.id);
@@ -257,7 +297,7 @@ function resolveTrick(state: GameState): GameState {
       tied.sort((a, b) => {
         const sa = numberedSum(player(next, a).hand);
         const sb = numberedSum(player(next, b).hand);
-        return next.inversion ? sa - sb : sb - sa;
+        return inversionForCompare ? sa - sb : sb - sa;
       });
       tied = [tied[0]];
       next.log = [...next.log, "Départage par somme des mains restantes."];
@@ -273,7 +313,13 @@ function resolveTrick(state: GameState): GameState {
   }
 
   players = next.players.map((p) => ({ ...p, posed: [...p.posed], hand: [...p.hand], pointsPile: [...p.pointsPile] }));
-  const spoils: Card[] = [...next.commons, ...tiebreakCards];
+  const spoils: Card[] = [...tiebreakCards];
+  if (next.rules.tuning.winnerCapturesCommons) {
+    spoils.unshift(...next.commons);
+  } else if (next.commons.length) {
+    next.discard = [...next.discard, ...next.commons];
+    next.log = [...next.log, "Communes défaussées (non capturées)."];
+  }
   for (const p of players) {
     if (p.id === winnerId) {
       spoils.push(...p.posed);
@@ -297,7 +343,8 @@ function resolveTrick(state: GameState): GameState {
   next.log = [...next.log, `${winnerName} remporte le pli (${spoils.length} cartes).`];
 
   const { handSize } = dist(next.rules, players.length);
-  const drawOrder = clockwise(winnerId, players.length);
+  const drawStart = next.rules.tuning.drawWinnerFirst ? winnerId : next.dealerId;
+  const drawOrder = clockwise(drawStart, players.length);
   for (const pid of drawOrder) {
     const pl = players.find((p) => p.id === pid)!;
     const need = Math.max(0, handSize - pl.hand.length);

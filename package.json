@@ -7,16 +7,23 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "simulate": "tsx src/sim/cli.ts",
+    "simulate:iterations": "tsx src/sim/run-iterations.ts",
+    "simulate:compare-bots": "tsx src/sim/compare-bots.ts",
+    "simulate:ai": "tsx src/sim/run-ai.ts",
+    "simulate:llm": "tsx src/sim/run-llm.ts"
   },
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@types/node": "^24.3.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
     "vitest": "^3.2.4"
